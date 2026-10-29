@@ -103,3 +103,6 @@ export function payout(outcome: Outcome, wager: number): number {
       return 0
   }
 }
+
+export const money = (n: number) =>
+  '$' + n.toLocaleString(undefined, { maximumFractionDigits: 2 })
