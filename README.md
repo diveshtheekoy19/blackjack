@@ -9,7 +9,8 @@ A blackjack game for the browser, built with React, TypeScript and Vite.
 - Insurance when the dealer shows an ace
 - Dealer plays one card at a time
 - Win / loss / push tally and a count of cards left in the shoe
-- Bankroll is saved in your browser between visits
+- Log in with email and password; your bankroll and record are saved to a
+  Supabase database, so they follow you to any device
 - Works on desktop and phone screens
 
 ## Rules
@@ -39,7 +40,20 @@ A blackjack game for the browser, built with React, TypeScript and Vite.
 
 ## Running it
 
-Requires [Node.js](https://nodejs.org/).
+Requires [Node.js](https://nodejs.org/) and a [Supabase](https://supabase.com/) project.
+
+1. Create the `player_stats` table by running
+   `supabase/migrations/20261029150000_player_stats.sql` in the Supabase SQL editor
+   (or `npx supabase db push` on a linked project).
+2. Create `.env.local` with your project URL and publishable key:
+
+   ```
+   VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+   ```
+
+   On Vercel, set the same two environment variables.
+3. Install and start:
 
 ```bash
 npm install
@@ -58,4 +72,7 @@ Other scripts:
 
 - `src/game.ts` – deck, hand values and payout rules (no React)
 - `src/App.tsx` – game flow and the table UI
+- `src/Account.tsx` – login / sign-up screen; loads the player's saved stats
+- `src/supabase.ts` – Supabase client, loading and saving stats
+- `supabase/migrations/` – database table and row level security rules
 - `src/App.css`, `src/index.css` – styles

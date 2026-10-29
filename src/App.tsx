@@ -14,6 +14,7 @@ import {
   type Card,
   type Outcome,
 } from './game.ts'
+import { START_BANKROLL, saveStats, type SavedStats } from './supabase.ts'
 import './App.css'
 
 type Phase = 'betting' | 'insurance' | 'player' | 'dealer' | 'done'
@@ -29,26 +30,7 @@ type Hand = {
 
 type HandResult = { outcome: Outcome; net: number }
 
-const START_BANKROLL = 1000
 const CHIPS = [5, 25, 100, 500]
-const STORAGE_KEY = 'blackjack.bankroll'
-
-function loadBankroll(): number {
-  try {
-    const saved = Number(localStorage.getItem(STORAGE_KEY))
-    return Number.isFinite(saved) && saved > 0 ? saved : START_BANKROLL
-  } catch {
-    return START_BANKROLL
-  }
-}
-
-function saveBankroll(value: number) {
-  try {
-    localStorage.setItem(STORAGE_KEY, String(value))
-  } catch {
-    // storage unavailable (private window etc.) – the game still works
-  }
-}
 
 const money = (n: number) =>
   '$' + n.toLocaleString(undefined, { maximumFractionDigits: 2 })
@@ -101,11 +83,19 @@ function TotalBadge({ cards }: { cards: Card[] }) {
   )
 }
 
-export default function App() {
+type AppProps = {
+  userId: string
+  email: string
+  /** The player's bankroll and record as loaded from the database. */
+  saved: SavedStats
+  onSignOut: () => void
+}
+
+export default function App({ userId, email, saved, onSignOut }: AppProps) {
   const shoe = useRef<Card[]>(newShoe())
   const [cardsLeft, setCardsLeft] = useState(DECKS * 52)
 
-  const [bankroll, setBankroll] = useState(loadBankroll)
+  const [bankroll, setBankroll] = useState(saved.bankroll)
   const [bet, setBet] = useState(0)
   const [phase, setPhase] = useState<Phase>('betting')
   const [hands, setHands] = useState<Hand[]>([])
@@ -116,10 +106,19 @@ export default function App() {
   const [insurance, setInsurance] = useState(0)
   /** Insurance win/loss, once the dealer has checked for blackjack. */
   const [insuranceNet, setInsuranceNet] = useState<number | null>(null)
-  const [stats, setStats] = useState({ won: 0, lost: 0, pushed: 0 })
+  const [stats, setStats] = useState({ won: saved.won, lost: saved.lost, pushed: saved.pushed })
   const [shuffled, setShuffled] = useState(false)
+  const [saveFailed, setSaveFailed] = useState(false)
 
-  useEffect(() => saveBankroll(bankroll), [bankroll])
+  // Save every change to the database. Saves are chained so they arrive in
+  // order and an older value never overwrites a newer one.
+  const saveQueue = useRef(Promise.resolve())
+  useEffect(() => {
+    const snapshot = { bankroll, ...stats }
+    saveQueue.current = saveQueue.current.then(async () => {
+      setSaveFailed(!(await saveStats(userId, snapshot)))
+    })
+  }, [userId, bankroll, stats])
 
   const draw = useCallback((): Card => {
     const card = shoe.current.pop()!
@@ -338,6 +337,12 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1>Blackjack</h1>
+        <div className="account">
+          <span className="email" title={email}>{email}</span>
+          <button className="link" onClick={onSignOut}>
+            Log out
+          </button>
+        </div>
         <div className="bank">
           <span className="label">Bankroll</span>
           <span className="value">{money(bankroll)}</span>
@@ -521,6 +526,7 @@ export default function App() {
       <footer className="footer">
         <span>Blackjack pays 3 to 2 · Dealer stands on all 17s · Insurance pays 2 to 1 · Split up to 4 hands · 6 decks</span>
         <span>
+          {saveFailed && <span className="save-error">Not saved, check your connection · </span>}
           W {stats.won} · L {stats.lost} · P {stats.pushed} · {cardsLeft} cards left
         </span>
       </footer>
